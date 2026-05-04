@@ -1,0 +1,2 @@
+# gs3rp4
+STUDY, AI, STUDY, AI.... ESTUDOS, IA, ESTUDOS, IA 
