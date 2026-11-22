@@ -45,7 +45,7 @@ jobs:
                       print('TESTING REAL WASM',kind,flush=True)
                       page.locator('#format').select_option(kind)
                       try:
-                          with page.expect_download(timeout=180000) as download_info:
+                          with page.expect_download(timeout=25000) as download_info:
                               page.locator('#export').click()
                           download=download_info.value
                           file=OUT/('caopress-real.'+kind)
