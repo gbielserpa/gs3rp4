@@ -155,7 +155,7 @@ async function exportEncoded(){
    const args=buildCaoArgs({ranges,speed:rate(),hasAudio,format:target,srcWidth:v.videoWidth,srcHeight:v.videoHeight,maxHeight:+$('res').value,blur:+$('blur').value,compression:+$('compress').value,volume:vol(),bitrate:+$('audioKbps').value,inputName,outputName});
    if(cancelled)throw Error('Cancelado');
    setStatus('Convertendo para '+target.toUpperCase()+'...');
-   const code=await engine.exec(args,0);
+   $('log').textContent+='\nCMD: '+args.join(' ');const code=await engine.exec(args,-1);
    if(code!==0)throw Error('Falha na conversão '+target.toUpperCase()+' (código '+code+'). Consulte os detalhes técnicos.');
    if(cancelled)throw Error('Cancelado');
    const result=await engine.readFile(outputName);
