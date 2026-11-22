@@ -135,11 +135,9 @@ function buildCaoArgs({ranges,speed,hasAudio,format,srcWidth,srcHeight,maxHeight
  return args;
 }
 async function inspectAudio(engine,fileName){
- const outName='audio-probe.txt';
- const code=await engine.ffprobe(['-v','error','-select_streams','a','-show_entries','stream=codec_type','-of','csv=p=0',fileName,'-o',outName]);
- if(code!==0)throw Error('Não consegui analisar a trilha de áudio.');
- let txt=await engine.readFile(outName,'utf8');try{await engine.deleteFile(outName)}catch{}
- return String(txt).includes('audio');
+ // FFprobe no core wasm pode retornar código diferente e não gerar -o. FFmpeg mapeia a trilha real diretamente.
+ const result=await engine.exec(['-v','error','-i',fileName,'-map','0:a:0','-t','0.05','-c:a','copy','-f','null','-'],15000);
+ return result===0;
 }
 async function exportEncoded(){
  if(busy||!input)return;
