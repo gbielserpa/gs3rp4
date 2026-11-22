@@ -1,0 +1,78 @@
+name: CaoPRESS real FFmpeg wasm browser export
+on:
+  push:
+    branches: [gh-pages]
+    paths: ['index.html', '.github/workflows/caopress-real.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-wasm-export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install real browser and ffprobe
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --disable-pip-version-check playwright==1.58.0
+          python -m playwright install --with-deps chromium
+      - name: Export MP4 and MP3 with real FFmpeg.wasm and verify
+        run: |
+          python - <<'PY'
+          import http.server, json, subprocess, threading, pathlib, traceback
+          from playwright.sync_api import sync_playwright
+          BASE=pathlib.Path.cwd();OUT=BASE/'test-artifacts';OUT.mkdir(exist_ok=True)
+          VIDEO=BASE/'test-input.mp4'
+          subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-f','lavfi','-i','testsrc2=size=160x90:rate=10:duration=2.0','-f','lavfi','-i','sine=frequency=440:duration=2.0','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-b:a','64k','-shortest',str(VIDEO)],check=True)
+          class Handler(http.server.SimpleHTTPRequestHandler):
+              def log_message(self,*args):pass
+          server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler)
+          threading.Thread(target=server.serve_forever,daemon=True).start()
+          failures=[]
+          try:
+              with sync_playwright() as p:
+                  b=p.chromium.launch(headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
+                  context=b.new_context(accept_downloads=True)
+                  page=context.new_page()
+                  page.on('pageerror',lambda e: print('PAGEERROR',str(e),flush=True))
+                  page.on('requestfailed',lambda r: print('REQUESTFAILED',r.url,r.failure,flush=True))
+                  page.goto('http://127.0.0.1:%s/index.html'%server.server_address[1])
+                  page.locator('#file').set_input_files(str(VIDEO))
+                  page.wait_for_function('document.querySelector("#video").duration>1.5',timeout=30000)
+                  for kind in ('mp4','mp3'):
+                      print('TESTING REAL WASM',kind,flush=True)
+                      page.locator('#format').select_option(kind)
+                      try:
+                          with page.expect_download(timeout=180000) as download_info:
+                              page.locator('#export').click()
+                          download=download_info.value
+                          file=OUT/('caopress-real.'+kind)
+                          download.save_as(str(file))
+                          probe=subprocess.run(['ffprobe','-v','error','-show_entries','format=duration:stream=codec_name,codec_type','-of','json',str(file)],capture_output=True,text=True,check=True)
+                          meta=json.loads(probe.stdout);codecs=[x['codec_name'] for x in meta['streams']]
+                          print('RESULT',kind,json.dumps(meta),flush=True)
+                          assert ('h264' in codecs and 'aac' in codecs) if kind=='mp4' else ('mp3' in codecs), codecs
+                          subprocess.run(['ffmpeg','-v','error','-i',str(file),'-f','null','-'],capture_output=True,text=True,check=True)
+                          print('PASS REAL BROWSER CODEC',kind,flush=True)
+                      except Exception as e:
+                          status=page.locator('#status').inner_text()
+                          details=page.locator('#log').inner_text()[-7000:]
+                          print('FAIL REAL BROWSER CODEC',kind,status,details,repr(e),flush=True)
+                          page.screenshot(path=str(OUT/('failure-'+kind+'.png')))
+                          failures.append(kind+': '+status+' '+details+' '+repr(e))
+                  b.close()
+          finally:
+              server.shutdown()
+          if failures:
+              (OUT/'failures.txt').write_text('\n'.join(failures))
+              raise RuntimeError('BROWSER WASM TESTS FAILED')
+          print('ALL REAL BROWSER WASM EXPORTS PASS',flush=True)
+          PY
+      - name: Capture diagnostics
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-wasm-evidence
+          path: test-artifacts/
