@@ -91,19 +91,19 @@ async function fetchBlobURL(urls,type){
 async function loadEncoder(){
  if(encoderEngine?.loaded)return encoderEngine;
  setStatus('Carregando motor de MP4/MP3 pela primeira vez...');
- await loadExternalScript([URL_WRAP+'/ffmpeg.min.js',URL_WRAP_ALT+'/ffmpeg.js']);
+ await loadExternalScript(['./vendor/ffmpeg.min.js']);
  if(!window.FFmpegWASM?.FFmpeg)throw Error('O motor FFmpeg não foi carregado.');
- const workerURL=await fetchBlobURL([URL_WRAP+'/814.ffmpeg.js',URL_WRAP_ALT+'/814.ffmpeg.js'],'text/javascript');
+ // O pacote UMD carrega seu worker clássico via mesma origem, sem classWorkerURL.
  const coreURL=await fetchBlobURL([URL_CORE+'/ffmpeg-core.js',URL_CORE_ALT+'/ffmpeg-core.js'],'text/javascript');
  const wasmURL=await fetchBlobURL([URL_CORE+'/ffmpeg-core.wasm',URL_CORE_ALT+'/ffmpeg-core.wasm'],'application/wasm');
  const engine=new window.FFmpegWASM.FFmpeg();
  engine.on('log',event=>{const msg=event.message||'';if(/error|invalid|failed|time=|speed=|frame=/.test(msg)){$('log').textContent=($('log').textContent+'\n'+msg).slice(-3200)}});
  engine.on('progress',event=>{if(typeof event.progress==='number'&&Number.isFinite(event.progress))$('fill').style.width=Math.min(95,Math.max(2,Math.round(event.progress*92)))+'%'});
  try{
-   await Promise.race([engine.load({classWorkerURL:workerURL,coreURL,wasmURL}),new Promise((_,reject)=>setTimeout(()=>reject(Error('Tempo limite ao inicializar o motor.')),60000))]);
+   await Promise.race([engine.load({coreURL,wasmURL}),new Promise((_,reject)=>setTimeout(()=>reject(Error('Tempo limite ao inicializar o motor.')),60000))]);
    encoderEngine=engine;return engine;
  }catch(error){try{engine.terminate()}catch{};throw error}
- finally{URL.revokeObjectURL(workerURL);URL.revokeObjectURL(coreURL);URL.revokeObjectURL(wasmURL)}
+ finally{URL.revokeObjectURL(coreURL);URL.revokeObjectURL(wasmURL)}
 }
 function audioTempo(value){const filters=[];let v=value;while(v>2){filters.push('atempo=2');v/=2}while(v<0.5){filters.push('atempo=0.5');v*=2}filters.push('atempo='+v.toFixed(6));return filters.join(',')}
 function buildCaoArgs({ranges,speed,hasAudio,format,srcWidth,srcHeight,maxHeight,blur,compression,volume,bitrate,inputName,outputName}){
