@@ -97,7 +97,7 @@ async function loadEncoder(){
  const coreURL=await fetchBlobURL([URL_CORE+'/ffmpeg-core.js',URL_CORE_ALT+'/ffmpeg-core.js'],'text/javascript');
  const wasmURL=await fetchBlobURL([URL_CORE+'/ffmpeg-core.wasm',URL_CORE_ALT+'/ffmpeg-core.wasm'],'application/wasm');
  const engine=new window.FFmpegWASM.FFmpeg();
- engine.on('log',event=>{const msg=event.message||'';if(/error|invalid|failed|time=|speed=|frame=/.test(msg)){$('log').textContent=($('log').textContent+'\n'+msg).slice(-3200)}});
+ engine.on('log',event=>{const msg=event.message||'';$('log').textContent=($('log').textContent+'\n'+msg).slice(-8000);});
  engine.on('progress',event=>{if(typeof event.progress==='number'&&Number.isFinite(event.progress))$('fill').style.width=Math.min(95,Math.max(2,Math.round(event.progress*92)))+'%'});
  try{
    await Promise.race([engine.load({coreURL,wasmURL}),new Promise((_,reject)=>setTimeout(()=>reject(Error('Tempo limite ao inicializar o motor.')),60000))]);
@@ -156,7 +156,7 @@ async function exportEncoded(){
    if(cancelled)throw Error('Cancelado');
    setStatus('Convertendo para '+target.toUpperCase()+'...');
    const code=await engine.exec(args,0);
-   if(code!==0)throw Error('Falha na conversão '+target.toUpperCase()+'. Consulte os detalhes técnicos.');
+   if(code!==0)throw Error('Falha na conversão '+target.toUpperCase()+' (código '+code+'). Consulte os detalhes técnicos.');
    if(cancelled)throw Error('Cancelado');
    const result=await engine.readFile(outputName);
    if(!result||result.byteLength<100)throw Error('Saída vazia. Não será criado um arquivo inválido.');
